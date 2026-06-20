@@ -32,13 +32,15 @@ Priority: optional
 Architecture: ${ARCH}
 Depends: libc6, libx11-6, libxext6, libxfixes3, libxrender1, libxtst6, libcairo2
 Installed-Size: ${INSTALLED_KB}
-Maintainer: cds-id <dev@cds.id>
+Maintainer: Indra Gunanda <indra.gunanda@ciptadusa.com>
 Homepage: https://github.com/cds-id/petto
 Description: Desktop pet that reacts as you type
  petto is a lightweight X11 desktop pet. Choose a rocket, cat, or Jarvis-style
  HUD that animates and reacts to your keystrokes. It includes a built-in
  Pomodoro timer with a full-screen break overlay. Double-click the pet to open
  settings.
+ .
+ An open source project by Cipta Dua Saudara (CDS) - https://open.ciptadusa.com
 EOF
 
 # 4. build the package

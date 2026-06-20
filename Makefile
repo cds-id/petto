@@ -1,7 +1,8 @@
 CC      ?= gcc
 CFLAGS  ?= -O2 -Wall -Wextra -std=c11 -g
 PKGS     = x11 xext xfixes xrender xtst cairo cairo-xlib
-CFLAGS  += $(shell pkg-config --cflags $(PKGS))
+VERSION  := $(shell cat VERSION 2>/dev/null || echo 0.0.0)
+CFLAGS  += $(shell pkg-config --cflags $(PKGS)) -DPETTO_VERSION='"$(VERSION)"'
 LDFLAGS += $(shell pkg-config --libs $(PKGS)) -lm
 
 SRC = $(wildcard src/*.c)

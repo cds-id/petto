@@ -1,6 +1,12 @@
 # petto
 
+[![Open source by CDS](https://img.shields.io/badge/Open_Source_by-CDS-F97316?style=for-the-badge)](https://open.ciptadusa.com)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](LICENSE)
+
 A lightweight X11 desktop pet that reacts as you type, with a built-in Pomodoro timer.
+
+> An open source project by **Cipta Dua Saudara (CDS)**.
+> Authored and maintained by Indra Gunanda &lt;indra.gunanda@ciptadusa.com&gt;.
 
 Pick a **rocket**, **cat**, or **Jarvis-style HUD**. Each idles with its own
 animation and reacts to your keystrokes globally (any window). The rocket even
@@ -78,3 +84,18 @@ onboarded=1
   reactions need the RECORD extension (available under XWayland/X11).
 - The pet uses an ARGB visual for true transparency when a compositor is
   running, and falls back to an XShape mask otherwise.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
+
+## Author
+
+Authored and maintained by **Indra Gunanda** &lt;indra.gunanda@ciptadusa.com&gt;.
+
+---
+
+<p align="center">
+  An open source project by <a href="https://open.ciptadusa.com"><strong>Cipta Dua Saudara (CDS)</strong></a><br/>
+  <a href="https://open.ciptadusa.com">open.ciptadusa.com</a> · <a href="https://ciptadusa.com">ciptadusa.com</a>
+</p>

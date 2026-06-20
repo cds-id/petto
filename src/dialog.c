@@ -192,6 +192,11 @@ static void render(Dlg *d, Config *cfg, DialogMode mode) {
     stepper(d, y, "Long every (sessions)", buf, ID_EVERY_DN, ID_EVERY_UP);
     y += 54;
 
+    /* --- CDS open-source credit --- */
+    text_center(cr, DW / 2, DH - 68,
+                "Open source by CDS  -  open.ciptadusa.com", 11, 0,
+                0.45, 0.52, 0.62, 1);
+
     /* --- action buttons --- */
     double bw = (DW - 28 * 2 - 12) / 2.0;
     button(d, 28, DH - 56, bw, 40,

@@ -1,4 +1,14 @@
 #define _POSIX_C_SOURCE 200809L
+/*
+ * petto - desktop pet that reacts as you type, with a Pomodoro timer.
+ * An open source project by Cipta Dua Saudara (CDS).
+ * Author: Indra Gunanda <indra.gunanda@ciptadusa.com>
+ * https://github.com/cds-id/petto - https://open.ciptadusa.com
+ * SPDX-License-Identifier: MIT
+ */
+#ifndef PETTO_VERSION
+#define PETTO_VERSION "dev"
+#endif
 #include "window.h"
 #include "sprite.h"
 #include "pettype.h"
@@ -99,6 +109,13 @@ int main(int argc, char **argv) {
                    "             [--work MIN] [--short MIN] [--long MIN] [--long-every N]\n"
                    "             [--settings]   open the settings dialog on launch\n"
                    "Double-click the pet any time to open settings.\n");
+            return 0;
+        }
+        else if (strcmp(argv[i], "--version") == 0 || strcmp(argv[i], "-v") == 0) {
+            printf("petto " PETTO_VERSION "\n"
+                   "An open source project by Cipta Dua Saudara (CDS)\n"
+                   "Author: Indra Gunanda <indra.gunanda@ciptadusa.com>\n"
+                   "https://github.com/cds-id/petto - https://open.ciptadusa.com\n");
             return 0;
         }
     }
