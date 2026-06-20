@@ -3,6 +3,8 @@
 #include "sprite.h"
 #include "pettype.h"
 #include "keyhook.h"
+#include "pomodoro.h"
+#include "blockscreen.h"
 
 #include <X11/Xlib.h>
 #include <stdio.h>
@@ -38,9 +40,28 @@ static double now_sec(void) {
 
 int main(int argc, char **argv) {
     const char *type_name = "rocket";
+    int    pomo_on = 0;
+    double work_min = 25, short_min = 5, long_min = 15;
+    int    long_every = 4;
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--type") == 0 && i + 1 < argc)
             type_name = argv[++i];
+        else if (strcmp(argv[i], "--pomodoro") == 0)
+            pomo_on = 1;
+        else if (strcmp(argv[i], "--work") == 0 && i + 1 < argc)
+            work_min = atof(argv[++i]);
+        else if (strcmp(argv[i], "--short") == 0 && i + 1 < argc)
+            short_min = atof(argv[++i]);
+        else if (strcmp(argv[i], "--long") == 0 && i + 1 < argc)
+            long_min = atof(argv[++i]);
+        else if (strcmp(argv[i], "--long-every") == 0 && i + 1 < argc)
+            long_every = atoi(argv[++i]);
+        else if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
+            printf("usage: petto [--type rocket|cat|jarvis] [--pomodoro]\n"
+                   "             [--work MIN] [--short MIN] [--long MIN]\n"
+                   "             [--long-every N]\n");
+            return 0;
+        }
     }
 
     App app;
@@ -74,6 +95,19 @@ int main(int argc, char **argv) {
     /* Global keyhook (optional: pet still works as draggable toy without it) */
     Keyhook *kh = keyhook_create(key_cb, &app);
     if (!kh) fprintf(stderr, "petto: global keyhook disabled (no RECORD)\n");
+
+    /* Pomodoro + break block screen (optional) */
+    Pomodoro pomo;
+    memset(&pomo, 0, sizeof pomo);
+    BlockScreen bs;
+    memset(&bs, 0, sizeof bs);
+    if (pomo_on) {
+        pomo_init(&pomo, work_min, short_min, long_min, long_every, now_sec());
+        blockscreen_init(&bs, pw.dpy);
+        fprintf(stderr, "petto: pomodoro on (work=%.0f short=%.0f long=%.0f "
+                        "long_every=%d)\n",
+                work_min, short_min, long_min, long_every);
+    }
 
     signal(SIGINT, on_sigint);
     signal(SIGTERM, on_sigint);
@@ -128,6 +162,7 @@ int main(int argc, char **argv) {
         if (app.pt->tick) app.pt->tick(app.pt, &app.st, dt);
         if (app.st.frame != prev_frame || app.st.energy > 0.001 || pe > 0.001)
             need_draw = 1;
+        if (app.pt->draw) need_draw = 1; /* procedural types animate every frame */
 
         /* ---- launch: fly the window upward, reset once off the top ---- */
         if (app.st.mode == PET_LAUNCH) {
@@ -143,10 +178,39 @@ int main(int argc, char **argv) {
             }
         }
 
+        /* ---- pomodoro: drive breaks + block screen ---- */
+        if (pomo_on) {
+            pomo_update(&pomo, t);
+            if (pomo.phase_changed) {
+                pomo.phase_changed = 0;
+                if (pomo_is_break(&pomo)) blockscreen_show(&bs);
+                else                      blockscreen_hide(&bs);
+            }
+            if (blockscreen_visible(&bs)) {
+                double total = (pomo.phase == POMO_SHORT_BREAK)
+                                   ? pomo.short_secs
+                                   : pomo.long_secs;
+                blockscreen_draw(&bs, pomo_phase_label(&pomo),
+                                 pomo_remaining(&pomo, t), total, t);
+            }
+        }
+
         /* ---- render ---- */
         if (need_draw) {
             cairo_t *cr = petwin_cairo(&pw);
-            sprite_draw(&spr, cr, app.st.frame, app.st.shake_x, app.st.shake_y);
+            if (app.pt->draw) {
+                /* procedural type: clear to transparent, then draw */
+                cairo_save(cr);
+                cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
+                cairo_set_source_rgba(cr, 0, 0, 0, 0);
+                cairo_paint(cr);
+                cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
+                app.pt->draw(app.pt, &app.st, cr, W, H);
+                cairo_restore(cr);
+            } else {
+                sprite_draw(&spr, cr, app.st.frame,
+                            app.st.shake_x, app.st.shake_y);
+            }
             petwin_flush(&pw);
             if (!pw.composited) petwin_update_shape(&pw);
             need_draw = 0;
@@ -154,6 +218,7 @@ int main(int argc, char **argv) {
     }
 
     if (kh) keyhook_destroy(kh);
+    if (pomo_on) blockscreen_destroy(&bs);
     petwin_destroy(&pw);
     sprite_free(&spr);
     return 0;

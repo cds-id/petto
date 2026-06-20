@@ -146,8 +146,219 @@ static const PetType ROCKET = {
 
 const PetType *pettype_rocket(void) { return &ROCKET; }
 
+/* ---- CAT -------------------------------------------------------------
+ * 16x16. Frames: 0 idle, 1 blink (eyes closed), 2 react (ears/tail up).
+ * Idle: occasional blink + lazy breathing. Typing: snaps to react with a
+ * startled hop, settles back when typing stops.
+ * Palette: '.' outline 'C' fur 'W' belly 'E' eye 'P' nose '-' closed-eye
+ */
+static const char CAT_IDLE[] =
+    "  ..      ..    "
+    "  .C.    .C.    "
+    "  .CC....CC.    "
+    " .CCCCCCCCCC.   "
+    " .C.CCCCCC.C.   "
+    " .CEC.CC.CEC.   "
+    " .CCCCCCCCCC.   "
+    " .CCC.PP.CCC.   "
+    " .CCCCCCCCCC.   "
+    "  .CCCCCCCC.    "
+    "  .CWWWWWWC..   "
+    "  .CWWWWWWC.C.  "
+    "  .CWWWWWWC.CC. "
+    "  .CCCCCCCC..C. "
+    "  .C......C..C. "
+    "   ........  .. ";
+
+static const char CAT_BLINK[] =
+    "  ..      ..    "
+    "  .C.    .C.    "
+    "  .CC....CC.    "
+    " .CCCCCCCCCC.   "
+    " .CCCCCCCCCC.   "
+    " .C--C.CC--C.   "
+    " .CCCCCCCCCC.   "
+    " .CCC.PP.CCC.   "
+    " .CCCCCCCCCC.   "
+    "  .CCCCCCCC.    "
+    "  .CWWWWWWC..   "
+    "  .CWWWWWWC.C.  "
+    "  .CWWWWWWC.CC. "
+    "  .CCCCCCCC..C. "
+    "  .C......C..C. "
+    "   ........  .. ";
+
+static const char CAT_REACT[] =
+    "  .        .    "
+    "  ..      ..    "
+    "  .C......C.    "
+    " .CCCCCCCCCC. . "
+    " .C.CCCCCC.C..C."
+    " .CEC.CC.CEC.CC."
+    " .CCCCCCCCCC.C. "
+    " .CCC.PP.CCC.C. "
+    " .CCCCCCCCCC.C. "
+    "  .CCCCCCCC.C.  "
+    "  .CWWWWWWC.    "
+    "  .CWWWWWWC.    "
+    "  .CWWWWWWC.    "
+    "  .CCCCCCCC.    "
+    "  .C......C.    "
+    "   ........     ";
+
+static void cat_on_key(PetState *st) {
+    st->energy += 0.5;
+    if (st->energy > 1.0) st->energy = 1.0;
+    st->mode = PET_THRUST;
+}
+
+static void cat_tick(const PetType *pt, PetState *st, double dt) {
+    (void)pt;
+    st->t += dt;
+    st->energy -= dt * 1.1;
+    if (st->energy < 0.0) st->energy = 0.0;
+
+    if (st->energy > 0.18) {
+        /* react: ears/tail up, small startled hop */
+        st->mode = PET_THRUST;
+        st->frame = 2;
+        st->shake_x = sin(st->t * 30.0) * (st->energy * 1.5);
+        st->shake_y = -fabs(sin(st->t * 18.0)) * (st->energy * 3.0); /* hop */
+    } else {
+        st->mode = PET_IDLE;
+        /* blink ~0.12s every ~3s */
+        st->phase += dt;
+        double cycle = fmod(st->phase, 3.0);
+        st->frame = (cycle < 0.12) ? 1 : 0;
+        st->shake_x = 0.0;
+        st->shake_y = sin(st->t * 1.6) * 1.5; /* lazy breathing */
+    }
+}
+
+static const PetType CAT = {
+    .name     = "cat",
+    .scale    = 4,
+    .idle_fps = 2.0,
+    .on_key   = cat_on_key,
+    .tick     = cat_tick,
+    .draw     = NULL,
+    .sprite   = {
+        .gw = 16, .gh = 16,
+        .nframes = 3,
+        .frames = { CAT_IDLE, CAT_BLINK, CAT_REACT },
+        .npalette = 7,
+        .palette = {
+            { '.',  35,  30,  40, 255 },
+            { 'C', 120, 120, 130, 255 },
+            { 'W', 235, 235, 240, 255 },
+            { 'E',  90, 220, 140, 255 },
+            { 'P', 240, 150, 170, 255 },
+            { '-',  35,  30,  40, 255 },
+            { ' ',   0,   0,   0,   0 },
+        },
+    },
+};
+
+const PetType *pettype_cat(void) { return &CAT; }
+
+/* ---- JARVIS ----------------------------------------------------------
+ * Fully procedural circular "matrix" HUD: concentric rotating arc segments
+ * + a pulsing core. No sprite frames; rendered via the draw() hook. Typing
+ * energy speeds up rotation, brightens, and shifts cyan -> amber.
+ * State use: phase = ring rotation angle, t = free time, energy = activity.
+ */
+#define JARVIS_PX 64   /* logical canvas size; window is this * scale */
+
+static void jarvis_on_key(PetState *st) {
+    st->energy += 0.4;
+    if (st->energy > 1.0) st->energy = 1.0;
+    st->mode = PET_THRUST;
+}
+
+static void jarvis_tick(const PetType *pt, PetState *st, double dt) {
+    (void)pt;
+    st->t += dt;
+    st->energy -= dt * 0.9;
+    if (st->energy < 0.0) st->energy = 0.0;
+    st->mode = (st->energy > 0.12) ? PET_THRUST : PET_IDLE;
+    /* rotation speed: idle slow, faster with energy */
+    st->phase += dt * (0.6 + st->energy * 6.0);
+    st->shake_x = st->shake_y = 0.0; /* HUD does not shake */
+}
+
+static void arc(cairo_t *cr, double cx, double cy, double r, double a0,
+                double a1, double width, double R, double G, double B,
+                double A) {
+    cairo_set_line_width(cr, width);
+    cairo_set_source_rgba(cr, R, G, B, A);
+    cairo_new_sub_path(cr);
+    cairo_arc(cr, cx, cy, r, a0, a1);
+    cairo_stroke(cr);
+}
+
+static void jarvis_draw(const PetType *pt, const PetState *st, cairo_t *cr,
+                        int w, int h) {
+    (void)pt;
+    double cx = w / 2.0, cy = h / 2.0;
+    double base = (w < h ? w : h) / 2.0 - 2.0;
+    double e = st->energy;
+    double ang = st->phase;
+    double TAU = 6.28318530718;
+
+    /* color: cyan (idle) -> amber (active) */
+    double R = 0.10 + e * 0.90;
+    double G = 0.85 - e * 0.35;
+    double B = 1.00 - e * 0.80;
+    double glow = 0.55 + e * 0.45;
+
+    /* outer ring: 3 rotating arc segments */
+    for (int i = 0; i < 3; i++) {
+        double a0 = ang + i * (TAU / 3.0);
+        arc(cr, cx, cy, base, a0, a0 + TAU / 5.0, 2.0 + e * 1.5,
+            R, G, B, glow);
+    }
+    /* middle ring: counter-rotating dashed feel via 6 short ticks */
+    for (int i = 0; i < 6; i++) {
+        double a0 = -ang * 1.6 + i * (TAU / 6.0);
+        arc(cr, cx, cy, base * 0.7, a0, a0 + 0.18, 2.0, R, G, B, glow * 0.9);
+    }
+    /* inner ring: thin full circle */
+    arc(cr, cx, cy, base * 0.45, 0, TAU, 1.0, R, G, B, glow * 0.6);
+
+    /* pulsing core */
+    double pulse = 0.5 + 0.5 * sin(st->t * (3.0 + e * 8.0));
+    double cr_r = base * (0.12 + 0.10 * pulse) + e * 4.0;
+    cairo_set_source_rgba(cr, R, G, B, 0.30 + 0.50 * pulse);
+    cairo_arc(cr, cx, cy, cr_r, 0, TAU);
+    cairo_fill(cr);
+    cairo_set_source_rgba(cr, 1, 1, 1, 0.6 + 0.4 * pulse);
+    cairo_arc(cr, cx, cy, cr_r * 0.4, 0, TAU);
+    cairo_fill(cr);
+}
+
+static const PetType JARVIS = {
+    .name     = "jarvis",
+    .scale    = 2,
+    .idle_fps = 30.0,
+    .on_key   = jarvis_on_key,
+    .tick     = jarvis_tick,
+    .draw     = jarvis_draw,
+    .sprite   = {
+        /* gw*scale x gh*scale defines the window size; no frames used */
+        .gw = JARVIS_PX, .gh = JARVIS_PX,
+        .nframes = 0,
+        .frames = { 0 },
+        .npalette = 0,
+        .palette = { { 0 } },
+    },
+};
+
+const PetType *pettype_jarvis(void) { return &JARVIS; }
+
 const PetType *pettype_by_name(const char *name) {
     if (!name) return pettype_rocket();
     if (strcmp(name, "rocket") == 0) return pettype_rocket();
+    if (strcmp(name, "cat")    == 0) return pettype_cat();
+    if (strcmp(name, "jarvis") == 0) return pettype_jarvis();
     return NULL;
 }

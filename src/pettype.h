@@ -40,6 +40,7 @@ typedef struct {
 
     /* per-type scratch */
     double t;           /* free-running time (s) */
+    double phase;       /* generic per-type accumulator (blink, spin, etc.) */
 } PetState;
 
 struct PetType {
@@ -52,10 +53,18 @@ struct PetType {
     void (*on_key)(PetState *st);
     /* Called every tick (dt seconds). Advance animation, decay energy, etc. */
     void (*tick)(const PetType *pt, PetState *st, double dt);
+
+    /* Optional procedural renderer. If non-NULL, main calls this instead of
+     * blitting sprite frames (used by fully drawn types like jarvis). cr is
+     * pre-cleared; w/h are the device pixel size of the window. */
+    void (*draw)(const PetType *pt, const PetState *st, cairo_t *cr,
+                 int w, int h);
 };
 
 /* Built-in types */
 const PetType *pettype_rocket(void);
+const PetType *pettype_cat(void);
+const PetType *pettype_jarvis(void);
 
 /* Lookup by name; NULL if unknown. */
 const PetType *pettype_by_name(const char *name);
