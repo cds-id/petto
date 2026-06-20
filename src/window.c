@@ -206,7 +206,12 @@ int petwin_handle_event(PetWindow *pw, XEvent *ev) {
         return 1;
     case ButtonPress:
         if (ev->xbutton.button == Button1) {
+            /* double-click: two presses within 400ms */
+            if (ev->xbutton.time - pw->last_click_time < 400)
+                pw->dbl_click = 1;
+            pw->last_click_time = ev->xbutton.time;
             pw->dragging = 1;
+            pw->moved_while_drag = 0;
             pw->drag_dx = ev->xbutton.x;
             pw->drag_dy = ev->xbutton.y;
         }
@@ -216,6 +221,7 @@ int petwin_handle_event(PetWindow *pw, XEvent *ev) {
         return 0;
     case MotionNotify:
         if (pw->dragging) {
+            pw->moved_while_drag = 1;
             /* x_root/y_root are absolute; subtract grab offset */
             int nx = ev->xmotion.x_root - pw->drag_dx;
             int ny = ev->xmotion.y_root - pw->drag_dy;

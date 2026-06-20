@@ -19,7 +19,18 @@ src/%.o: src/%.c
 clean:
 	rm -f $(OBJ) $(BIN)
 
+PREFIX  ?= /usr
+DESTDIR ?=
+
+install: $(BIN)
+	install -Dm755 $(BIN) $(DESTDIR)$(PREFIX)/bin/petto
+	install -Dm644 packaging/petto.desktop \
+		$(DESTDIR)$(PREFIX)/share/applications/petto.desktop
+
+install-strip: install
+	strip $(DESTDIR)$(PREFIX)/bin/petto
+
 run: $(BIN)
 	./$(BIN)
 
-.PHONY: all clean run
+.PHONY: all clean run install install-strip

@@ -2,6 +2,7 @@
 /petto
 src/*.o
 *.o
+/dist/
 
 # editor
 *.swp

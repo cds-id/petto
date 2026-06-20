@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=petto
+GenericName=Desktop Pet
+Comment=A desktop pet that reacts as you type, with a built-in Pomodoro timer
+Exec=petto
+Icon=petto
+Terminal=false
+Categories=Utility;
+Keywords=pet;pomodoro;timer;desktop;
+StartupNotify=false

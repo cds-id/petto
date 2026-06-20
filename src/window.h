@@ -27,6 +27,11 @@ typedef struct {
     /* drag state */
     int  dragging;
     int  drag_dx, drag_dy;     /* pointer offset within window at grab */
+    int  moved_while_drag;     /* distinguish click from drag */
+
+    /* double-click detection */
+    Time last_click_time;
+    int  dbl_click;            /* set when a double-click is detected */
 } PetWindow;
 
 /* Create the window sized w*h at position x,y. Returns 0 on success. */
