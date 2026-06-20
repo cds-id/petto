@@ -56,6 +56,12 @@ struct PetType {
     int         scale;           /* default upscale */
     double      idle_fps;        /* base frame rate when calm */
 
+    /* If non-NULL, this pet is rendered from a Lottie file via rlottie
+     * (see lottiepet.c) instead of the pixel SpriteDef. Path is resolved
+     * relative to the asset search dirs in main. */
+    const char *lottie_file;
+    int         lottie_px;       /* render size (square) in device px */
+
     /* Called once per keystroke. Implement type-specific reaction. */
     void (*on_key)(PetState *st);
     /* Called every tick (dt seconds). Advance animation, decay energy, etc. */
@@ -72,6 +78,7 @@ struct PetType {
 const PetType *pettype_rocket(void);
 const PetType *pettype_cat(void);
 const PetType *pettype_jarvis(void);
+const PetType *pettype_rocket_lottie(void);
 
 /* Lookup by name; NULL if unknown. */
 const PetType *pettype_by_name(const char *name);

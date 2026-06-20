@@ -19,7 +19,7 @@ typedef struct { double x, y, w, h; int id; } Hit;
 
 enum {
     ID_NONE = 0,
-    ID_PET_ROCKET, ID_PET_CAT, ID_PET_JARVIS,
+    ID_PET_ROCKET, ID_PET_CAT, ID_PET_JARVIS, ID_PET_LOTTIE,
     ID_POMO_TOGGLE,
     ID_WORK_DN, ID_WORK_UP,
     ID_SHORT_DN, ID_SHORT_UP,
@@ -162,17 +162,20 @@ static void render(Dlg *d, Config *cfg, DialogMode mode) {
         y += 34;
     }
 
-    /* --- pet picker --- */
+    /* --- pet picker (2x2 grid) --- */
     text(cr, 28, y, "Pet", 14, 1, 0.75, 0.80, 0.88, 1);
     y += 12;
-    double pw = (DW - 28 * 2 - 12 * 2) / 3.0;
-    button(d, 28, y, pw, 40, "Rocket", ID_PET_ROCKET,
+    double pw = (DW - 28 * 2 - 12) / 2.0;
+    button(d, 28, y, pw, 38, "Rocket", ID_PET_ROCKET,
            strcmp(cfg->pet_type, "rocket") == 0);
-    button(d, 28 + pw + 12, y, pw, 40, "Cat", ID_PET_CAT,
+    button(d, 28 + pw + 12, y, pw, 38, "Cat", ID_PET_CAT,
            strcmp(cfg->pet_type, "cat") == 0);
-    button(d, 28 + (pw + 12) * 2, y, pw, 40, "Jarvis", ID_PET_JARVIS,
+    y += 46;
+    button(d, 28, y, pw, 38, "Jarvis", ID_PET_JARVIS,
            strcmp(cfg->pet_type, "jarvis") == 0);
-    y += 60;
+    button(d, 28 + pw + 12, y, pw, 38, "Rocket HD", ID_PET_LOTTIE,
+           strcmp(cfg->pet_type, "rocket-lottie") == 0);
+    y += 58;
 
     /* --- pomodoro toggle --- */
     text(cr, 28, y + 22, "Pomodoro timer", 14, 1, 0.75, 0.80, 0.88, 1);
@@ -218,6 +221,7 @@ static void apply_click(Config *cfg, int id) {
     case ID_PET_ROCKET: snprintf(cfg->pet_type, sizeof cfg->pet_type, "rocket"); break;
     case ID_PET_CAT:    snprintf(cfg->pet_type, sizeof cfg->pet_type, "cat");    break;
     case ID_PET_JARVIS: snprintf(cfg->pet_type, sizeof cfg->pet_type, "jarvis"); break;
+    case ID_PET_LOTTIE: snprintf(cfg->pet_type, sizeof cfg->pet_type, "rocket-lottie"); break;
     case ID_POMO_TOGGLE: cfg->pomodoro = !cfg->pomodoro; break;
     case ID_WORK_DN:  cfg->work_min  = clampd(cfg->work_min  - 1, 1, 120); break;
     case ID_WORK_UP:  cfg->work_min  = clampd(cfg->work_min  + 1, 1, 120); break;

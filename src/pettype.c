@@ -412,11 +412,59 @@ static const PetType JARVIS = {
 
 const PetType *pettype_jarvis(void) { return &JARVIS; }
 
+/* ---- ROCKET (LOTTIE) -------------------------------------------------
+ * Same energy/launch behavior as the procedural rocket, but rendered from a
+ * Lottie file via rlottie. Has no sprite frames or draw() hook; main detects
+ * lottie_file and drives lottiepet. Reuses rocket on_key/tick for energy so
+ * the launch-to-moon mechanic still works. */
+static void lrocket_on_key(PetState *st) { rocket_on_key(st); }
+
+static void lrocket_tick(const PetType *pt, PetState *st, double dt) {
+    (void)pt;
+    /* energy + launch physics, but skip sprite-frame bookkeeping */
+    st->t += dt;
+    st->win_dy = 0.0;
+    if (st->mode == PET_LAUNCH) {
+        st->vy -= 900.0 * dt;
+        st->win_dy = st->vy * dt;
+        st->energy = 1.0;
+        st->charge = 1.0;
+        st->shake_x = sin(st->t * 90.0) * 4.0;
+        st->shake_y = cos(st->t * 70.0) * 4.0;
+        return;
+    }
+    st->energy -= dt * 1.4;
+    if (st->energy < 0.0) st->energy = 0.0;
+    st->charge -= dt * 0.55;
+    if (st->charge < 0.0) st->charge = 0.0;
+    st->mode = (st->energy <= 0.12) ? PET_IDLE : PET_THRUST;
+    /* gentle bob; Lottie itself carries the squash/flame motion */
+    st->shake_x = 0.0;
+    st->shake_y = sin(st->t * 2.2) * 2.0;
+}
+
+static const PetType ROCKET_LOTTIE = {
+    .name        = "rocket-lottie",
+    .scale       = 1,
+    .idle_fps    = 60.0,
+    .on_key      = lrocket_on_key,
+    .tick        = lrocket_tick,
+    .draw        = NULL,
+    .lottie_file = "rocket.json",
+    .lottie_px   = 128,
+    .sprite      = { .gw = 1, .gh = 1, .nframes = 0, .frames = { 0 },
+                     .npalette = 0, .palette = { { 0 } } },
+};
+
+const PetType *pettype_rocket_lottie(void) { return &ROCKET_LOTTIE; }
+
 const PetType *pettype_by_name(const char *name) {
     if (!name) return pettype_rocket();
     if (strcmp(name, "rocket") == 0) return pettype_rocket();
     if (strcmp(name, "cat")    == 0) return pettype_cat();
     if (strcmp(name, "jarvis") == 0) return pettype_jarvis();
+    if (strcmp(name, "rocket-lottie") == 0 || strcmp(name, "lottie") == 0)
+        return pettype_rocket_lottie();
     return NULL;
 }
 

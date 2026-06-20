@@ -30,7 +30,7 @@ Version: ${VERSION}
 Section: utils
 Priority: optional
 Architecture: ${ARCH}
-Depends: libc6, libx11-6, libxext6, libxfixes3, libxrender1, libxtst6, libcairo2
+Depends: libc6, libstdc++6, libx11-6, libxext6, libxfixes3, libxrender1, libxtst6, libcairo2
 Installed-Size: ${INSTALLED_KB}
 Maintainer: Indra Gunanda <indra.gunanda@ciptadusa.com>
 Homepage: https://github.com/cds-id/petto

@@ -7,3 +7,10 @@ src/*.o
 # editor
 *.swp
 .DS_Store
+/third_party/
+
+# lottie studio scaffold (degit'd player) — keep only the generator script
+/lottie-studio/*
+!/lottie-studio/scripts/
+!/lottie-studio/scripts/**
+/lottie-studio/scripts/copy-canvaskit.mjs

@@ -17,12 +17,14 @@
 #include "blockscreen.h"
 #include "config.h"
 #include "dialog.h"
+#include "lottiepet.h"
 
 #include <X11/Xlib.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <signal.h>
+#include <unistd.h>
 #include <sys/select.h>
 #include <time.h>
 #include <errno.h>
@@ -31,11 +33,30 @@
 typedef struct {
     const PetType *pt;
     PetState       st;
+    LottiePet     *lottie;      /* non-NULL when the pet is Lottie-rendered */
     volatile int   key_pending; /* incremented per keypress, drained on tick */
 } App;
 
 static volatile sig_atomic_t g_run = 1;
 static void on_sigint(int s) { (void)s; g_run = 0; }
+
+/* Resolve an asset filename to a readable path. Searches, in order:
+ *   $PETTO_ASSET_DIR, ./assets, /usr/share/petto, /usr/local/share/petto.
+ * Returns 1 and fills out[] on success. */
+static int resolve_asset(const char *file, char *out, size_t n) {
+    const char *dirs[5];
+    int nd = 0;
+    const char *env = getenv("PETTO_ASSET_DIR");
+    if (env && env[0]) dirs[nd++] = env;
+    dirs[nd++] = "assets";
+    dirs[nd++] = "/usr/share/petto";
+    dirs[nd++] = "/usr/local/share/petto";
+    for (int i = 0; i < nd; i++) {
+        snprintf(out, n, "%s/%s", dirs[i], file);
+        if (access(out, R_OK) == 0) return 1;
+    }
+    return 0;
+}
 
 static void key_cb(int keycode, int pressed, void *user) {
     (void)keycode;
@@ -60,6 +81,7 @@ static int build_pet(App *app, Sprite *spr, PetWindow *pw, Config *cfg,
     if (!first) {
         sprite_free(spr);
         petwin_destroy(pw);
+        if (app->lottie) { lottiepet_free(app->lottie); app->lottie = NULL; }
         pet_state_reset(&app->st);
     }
 
@@ -68,13 +90,34 @@ static int build_pet(App *app, Sprite *spr, PetWindow *pw, Config *cfg,
         fprintf(stderr, "sprite init failed\n");
         return -1;
     }
-    /* Window is larger than the sprite so squash/stretch/rotate + shake have
-     * room and never clip at the window edge. Sprite is centered in it. */
-    int sw = sprite_w(spr), sh = sprite_h(spr);
-    int margin = sw / 4;            /* ~25% breathing room each side */
-    if (margin < 12) margin = 12;
-    *W = sw + margin * 2;
-    *H = sh + margin * 2;
+
+    int sw, sh, margin;
+    if (pt->lottie_file) {
+        /* Lottie-rendered pet: size the window to the render px + margin. */
+        sw = sh = pt->lottie_px;
+        margin = sw / 4;
+        if (margin < 12) margin = 12;
+        *W = sw + margin * 2;
+        *H = sh + margin * 2;
+        char path[600];
+        if (!resolve_asset(pt->lottie_file, path, sizeof path)) {
+            fprintf(stderr, "petto: asset not found: %s\n", pt->lottie_file);
+            return -1;
+        }
+        app->lottie = lottiepet_load(path, sw, sh);
+        if (!app->lottie) {
+            fprintf(stderr, "petto: failed to load Lottie %s\n", path);
+            return -1;
+        }
+    } else {
+        /* Window is larger than the sprite so squash/stretch/rotate + shake
+         * have room and never clip at the edge. Sprite is centered in it. */
+        sw = sprite_w(spr); sh = sprite_h(spr);
+        margin = sw / 4;            /* ~25% breathing room each side */
+        if (margin < 12) margin = 12;
+        *W = sw + margin * 2;
+        *H = sh + margin * 2;
+    }
 
     /* Provisional position; corrected below once the screen size is known. */
     int px = cfg->spawn_x, py = cfg->spawn_y;
@@ -134,7 +177,7 @@ int main(int argc, char **argv) {
             cfg.long_every = atoi(argv[++i]);
         else if (strcmp(argv[i], "--settings") == 0) force_settings = 1;
         else if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
-            printf("usage: petto [--type rocket|cat|jarvis] [--pomodoro|--no-pomodoro]\n"
+            printf("usage: petto [--type rocket|cat|jarvis|rocket-lottie] [--pomodoro|--no-pomodoro]\n"
                    "             [--work MIN] [--short MIN] [--long MIN] [--long-every N]\n"
                    "             [--settings]   open the settings dialog on launch\n"
                    "Double-click the pet any time to open settings.\n");
@@ -267,6 +310,7 @@ int main(int argc, char **argv) {
 
         if (t - last_raise > 1.0) { petwin_raise(&pw); last_raise = t; }
         if (app.pt->tick) app.pt->tick(app.pt, &app.st, dt);
+        if (app.lottie) lottiepet_tick(app.lottie, dt, app.st.energy);
         /* Fluent transforms (breathing squash/sway, cross-fades) change every
          * frame, so always redraw. Cheap: it's a single cached blit. */
         need_draw = 1;
@@ -304,7 +348,10 @@ int main(int argc, char **argv) {
         /* ---- render ---- */
         if (need_draw) {
             cairo_t *cr = petwin_cairo(&pw);
-            if (app.pt->draw) {
+            if (app.lottie) {
+                lottiepet_draw(app.lottie, cr, W, H,
+                               app.st.shake_x, app.st.shake_y);
+            } else if (app.pt->draw) {
                 cairo_save(cr);
                 cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
                 cairo_set_source_rgba(cr, 0, 0, 0, 0);
@@ -338,5 +385,6 @@ int main(int argc, char **argv) {
     blockscreen_destroy(&bs);
     petwin_destroy(&pw);
     sprite_free(&spr);
+    if (app.lottie) lottiepet_free(app.lottie);
     return 0;
 }
