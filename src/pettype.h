@@ -21,8 +21,15 @@ typedef struct {
     int    mode;
 
     /* animation */
-    int   frame;        /* current sprite frame index */
+    int   frame;        /* current (target) sprite frame index */
+    int   frame_prev;   /* previous frame, for cross-fade */
+    double frame_mix;   /* 0..1 blend from frame_prev -> frame */
     double anim_t;      /* seconds accumulated for frame advance */
+
+    /* fluent transform set by tick(), consumed by main render */
+    double sx, sy;      /* scale/squash (1.0 = none) */
+    double rot;         /* rotation (radians) */
+    double tilt_vel;    /* internal: spring velocity for tilt */
 
     /* reaction energy: 0..1, decays over time, bumped by keystrokes */
     double energy;
@@ -68,5 +75,9 @@ const PetType *pettype_jarvis(void);
 
 /* Lookup by name; NULL if unknown. */
 const PetType *pettype_by_name(const char *name);
+
+/* Reset state to a clean idle pose (scale 1, no active cross-fade). Use this
+ * instead of memset so the fluent transform fields start at sane values. */
+void pet_state_reset(PetState *st);
 
 #endif

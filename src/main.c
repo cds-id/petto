@@ -60,7 +60,7 @@ static int build_pet(App *app, Sprite *spr, PetWindow *pw, const Config *cfg,
     if (!first) {
         sprite_free(spr);
         petwin_destroy(pw);
-        memset(&app->st, 0, sizeof app->st);
+        pet_state_reset(&app->st);
     }
 
     app->pt = pt;
@@ -68,8 +68,13 @@ static int build_pet(App *app, Sprite *spr, PetWindow *pw, const Config *cfg,
         fprintf(stderr, "sprite init failed\n");
         return -1;
     }
-    *W = sprite_w(spr);
-    *H = sprite_h(spr);
+    /* Window is larger than the sprite so squash/stretch/rotate + shake have
+     * room and never clip at the window edge. Sprite is centered in it. */
+    int sw = sprite_w(spr), sh = sprite_h(spr);
+    int margin = sw / 4;            /* ~25% breathing room each side */
+    if (margin < 12) margin = 12;
+    *W = sw + margin * 2;
+    *H = sh + margin * 2;
     if (petwin_create(pw, *W, *H, cfg->spawn_x, cfg->spawn_y) != 0)
         return -1;
     return 0;
@@ -136,6 +141,7 @@ int main(int argc, char **argv) {
 
     App app;
     memset(&app, 0, sizeof app);
+    pet_state_reset(&app.st);
 
     Sprite spr;
     PetWindow pw;
@@ -249,7 +255,7 @@ int main(int argc, char **argv) {
             petwin_move(&pw, pw.x, ny);
             need_draw = 1;
             if (ny + H < 0) {
-                memset(&app.st, 0, sizeof app.st);
+                pet_state_reset(&app.st);
                 app.key_pending = 0;
                 petwin_move(&pw, cfg.spawn_x, cfg.spawn_y);
                 petwin_raise(&pw);
@@ -285,8 +291,13 @@ int main(int argc, char **argv) {
                 app.pt->draw(app.pt, &app.st, cr, W, H);
                 cairo_restore(cr);
             } else {
-                sprite_draw(&spr, cr, app.st.frame,
-                            app.st.shake_x, app.st.shake_y);
+                SpriteXform xf = {
+                    .dx = app.st.shake_x, .dy = app.st.shake_y,
+                    .sx = app.st.sx, .sy = app.st.sy,
+                    .rot = app.st.rot, .alpha = 1.0
+                };
+                sprite_draw_ex(&spr, cr, app.st.frame_prev, app.st.frame,
+                               app.st.frame_mix, &xf, W, H);
             }
             petwin_flush(&pw);
             if (!pw.composited) petwin_update_shape(&pw);

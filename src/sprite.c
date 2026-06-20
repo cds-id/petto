@@ -83,3 +83,47 @@ void sprite_draw(const Sprite *s, cairo_t *cr, int frame, double dx, double dy) 
     cairo_paint(cr);
     cairo_restore(cr);
 }
+
+/* Blit one frame's already-scaled surface with a center transform + opacity.
+ * The sprite is centered inside a cw x ch canvas. */
+static void blit_xform(const Sprite *s, cairo_t *cr, int frame,
+                       const SpriteXform *x, double extra_alpha,
+                       int cw, int ch) {
+    if (frame < 0 || frame >= s->def->nframes || !s->surf[frame]) return;
+    double w = sprite_w(s), h = sprite_h(s);
+    double cx = cw / 2.0, cy = ch / 2.0;          /* canvas center */
+    double ox = cx - w / 2.0, oy = cy - h / 2.0;  /* sprite top-left */
+    cairo_save(cr);
+    /* transform about the canvas center, then place sprite top-left */
+    cairo_translate(cr, cx + x->dx, cy + x->dy);
+    cairo_rotate(cr, x->rot);
+    cairo_scale(cr, x->sx, x->sy);
+    cairo_translate(cr, -cx, -cy);
+    cairo_set_source_surface(cr, s->surf[frame], ox, oy);
+    cairo_pattern_set_filter(cairo_get_source(cr), CAIRO_FILTER_NEAREST);
+    cairo_paint_with_alpha(cr, x->alpha * extra_alpha);
+    cairo_restore(cr);
+}
+
+void sprite_draw_ex(const Sprite *s, cairo_t *cr, int fa, int fb, double mix,
+                    const SpriteXform *x, int cw, int ch) {
+    if (mix < 0) mix = 0;
+    if (mix > 1) mix = 1;
+    cairo_save(cr);
+    /* clear target to fully transparent */
+    cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
+    cairo_set_source_rgba(cr, 0, 0, 0, 0);
+    cairo_paint(cr);
+    cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
+
+    if (fa == fb || mix <= 0.001) {
+        blit_xform(s, cr, fa, x, 1.0, cw, ch);
+    } else if (mix >= 0.999) {
+        blit_xform(s, cr, fb, x, 1.0, cw, ch);
+    } else {
+        /* cross-fade: outgoing frame fades out, incoming fades in */
+        blit_xform(s, cr, fa, x, 1.0 - mix, cw, ch);
+        blit_xform(s, cr, fb, x, mix, cw, ch);
+    }
+    cairo_restore(cr);
+}

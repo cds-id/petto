@@ -43,4 +43,19 @@ int  sprite_h(const Sprite *s);
  * (used for shake). dx/dy in device pixels. */
 void sprite_draw(const Sprite *s, cairo_t *cr, int frame, double dx, double dy);
 
+/* Transform applied around the sprite center for fluent motion. */
+typedef struct {
+    double dx, dy;     /* translate (device px) */
+    double sx, sy;     /* scale (1.0 = none); squash/stretch */
+    double rot;        /* rotation (radians) */
+    double alpha;      /* overall opacity (1.0 = opaque) */
+} SpriteXform;
+
+/* Fluent draw: cross-fades frame `fa`->`fb` by `mix` (0..1) and applies an
+ * eased transform around the sprite center. The sprite is centered within a
+ * canvas of cw x ch device px (>= sprite size) so scale/rotate has margin and
+ * does not clip. Clears the target first. */
+void sprite_draw_ex(const Sprite *s, cairo_t *cr, int fa, int fb, double mix,
+                    const SpriteXform *x, int cw, int ch);
+
 #endif

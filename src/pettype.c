@@ -2,6 +2,30 @@
 #include <math.h>
 #include <string.h>
 
+/* ---- shared fluent-animation helpers ---------------------------------- */
+
+/* Request a frame change: starts a cross-fade from the current frame. */
+static void pet_set_frame(PetState *st, int f) {
+    if (f == st->frame) return;
+    st->frame_prev = st->frame;
+    st->frame = f;
+    st->frame_mix = 0.0;
+}
+
+/* Advance the active cross-fade. dur = fade duration (s). */
+static void pet_advance_mix(PetState *st, double dt, double dur) {
+    if (st->frame_mix < 1.0) {
+        st->frame_mix += dt / (dur > 0 ? dur : 0.001);
+        if (st->frame_mix > 1.0) st->frame_mix = 1.0;
+    }
+}
+
+/* Critically-damped spring toward target (smooth, no overshoot). */
+static double approach(double cur, double target, double dt, double rate) {
+    double k = 1.0 - exp(-rate * dt);
+    return cur + (target - cur) * k;
+}
+
 /* ---- ROCKET ----------------------------------------------------------
  * 16x20 pixel grid. Rows 0..16 are the body (shared by every frame);
  * rows 17..19 are the exhaust flame, which differs per frame:
@@ -70,25 +94,32 @@ static void rocket_tick(const PetType *pt, PetState *st, double dt) {
     st->t += dt;
     st->win_dy = 0.0;
 
+    /* default transform; ticks below nudge it, springs smooth it */
+    double tgt_sx = 1.0, tgt_sy = 1.0, tgt_rot = 0.0;
+
     if (st->mode == PET_LAUNCH) {
-        /* accelerate upward (negative y), strong flame, heavy shake */
-        st->vy -= 900.0 * dt;          /* thrust accel */
-        st->win_dy = st->vy * dt;      /* main moves the window by this */
+        st->vy -= 900.0 * dt;
+        st->win_dy = st->vy * dt;
         st->energy = 1.0;
         st->charge = 1.0;
 
-        /* fast flame flicker + violent shake */
+        /* fast flame flicker via cross-faded frames */
         st->anim_t += dt;
         if (st->anim_t >= 1.0 / 18.0) {
             st->anim_t = 0.0;
-            st->frame = (st->frame == 1) ? 2 : 1;
+            pet_set_frame(st, (st->frame == 1) ? 2 : 1);
         }
+        pet_advance_mix(st, dt, 0.04);
+        /* stretch upward as it blasts off */
+        tgt_sx = 0.86; tgt_sy = 1.22;
         st->shake_x = sin(st->t * 90.0) * 4.0;
         st->shake_y = cos(st->t * 70.0) * 4.0;
-        return; /* reset_request raised by main when off-screen */
+        st->sx = approach(st->sx, tgt_sx, dt, 18.0);
+        st->sy = approach(st->sy, tgt_sy, dt, 18.0);
+        st->rot = approach(st->rot, 0.0, dt, 12.0);
+        return;
     }
 
-    /* energy + charge bleed off when not typing */
     st->energy -= dt * 1.4;
     if (st->energy < 0.0) st->energy = 0.0;
     st->charge -= dt * 0.55;
@@ -98,27 +129,38 @@ static void rocket_tick(const PetType *pt, PetState *st, double dt) {
     else                    st->mode = PET_THRUST;
 
     if (st->mode == PET_IDLE) {
-        /* gentle idle: slow 2-frame bob, soft vertical float, no shake */
         double fps = pt->idle_fps;
         st->anim_t += dt;
         if (st->anim_t >= 1.0 / fps) {
             st->anim_t = 0.0;
-            st->frame = (st->frame == 0) ? 1 : 0; /* idle <-> small thrust */
+            pet_set_frame(st, (st->frame == 0) ? 1 : 0);
         }
+        pet_advance_mix(st, dt, 0.35);   /* slow, soft idle fade */
         st->shake_x = 0.0;
-        st->shake_y = sin(st->t * 2.2) * 2.0;  /* breathing float */
+        st->shake_y = sin(st->t * 2.2) * 2.0;     /* breathing float */
+        tgt_sy = 1.0 + sin(st->t * 2.2) * 0.03;
+        tgt_sx = 1.0 - sin(st->t * 2.2) * 0.03;
+        tgt_rot = sin(st->t * 0.8) * 0.02;        /* lazy sway */
     } else {
-        /* thrust: flame flicker + vibrate scaled by energy */
         double fps = pt->idle_fps + st->energy * 14.0;
         st->anim_t += dt;
         if (st->anim_t >= 1.0 / fps) {
             st->anim_t = 0.0;
-            st->frame = (st->frame == 1) ? 2 : 1;
+            pet_set_frame(st, (st->frame == 1) ? 2 : 1);
         }
+        pet_advance_mix(st, dt, 0.06);   /* quick flicker fade */
         double amp = st->energy * 3.0;
         st->shake_x = sin(st->t * 60.0) * amp;
         st->shake_y = cos(st->t * 47.0) * amp;
+        tgt_sy = 1.0 + st->energy * 0.10;
+        tgt_sx = 1.0 - st->energy * 0.06;
+        tgt_rot = sin(st->t * 38.0) * st->energy * 0.06;
     }
+
+    /* spring transforms toward targets for buttery motion */
+    st->sx  = approach(st->sx,  tgt_sx,  dt, 14.0);
+    st->sy  = approach(st->sy,  tgt_sy,  dt, 14.0);
+    st->rot = approach(st->rot, tgt_rot, dt, 16.0);
 }
 
 static const PetType ROCKET = {
@@ -218,21 +260,36 @@ static void cat_tick(const PetType *pt, PetState *st, double dt) {
     st->energy -= dt * 1.1;
     if (st->energy < 0.0) st->energy = 0.0;
 
+    double tgt_sx = 1.0, tgt_sy = 1.0, tgt_rot = 0.0;
+
     if (st->energy > 0.18) {
         /* react: ears/tail up, small startled hop */
         st->mode = PET_THRUST;
-        st->frame = 2;
+        pet_set_frame(st, 2);
+        pet_advance_mix(st, dt, 0.08);
         st->shake_x = sin(st->t * 30.0) * (st->energy * 1.5);
-        st->shake_y = -fabs(sin(st->t * 18.0)) * (st->energy * 3.0); /* hop */
+        double hop = fabs(sin(st->t * 18.0));
+        st->shake_y = -hop * (st->energy * 3.0);   /* hop */
+        /* squash on landing, stretch at peak of hop */
+        tgt_sy = 1.0 + hop * st->energy * 0.14;
+        tgt_sx = 1.0 - hop * st->energy * 0.10;
+        tgt_rot = sin(st->t * 22.0) * st->energy * 0.05;
     } else {
         st->mode = PET_IDLE;
         /* blink ~0.12s every ~3s */
         st->phase += dt;
         double cycle = fmod(st->phase, 3.0);
-        st->frame = (cycle < 0.12) ? 1 : 0;
+        pet_set_frame(st, (cycle < 0.12) ? 1 : 0);
+        pet_advance_mix(st, dt, 0.10);             /* fast eyelid fade */
         st->shake_x = 0.0;
-        st->shake_y = sin(st->t * 1.6) * 1.5; /* lazy breathing */
+        st->shake_y = sin(st->t * 1.6) * 1.5;      /* lazy breathing */
+        tgt_sy = 1.0 + sin(st->t * 1.6) * 0.04;    /* breathing belly */
+        tgt_sx = 1.0 - sin(st->t * 1.6) * 0.04;
     }
+
+    st->sx  = approach(st->sx,  tgt_sx,  dt, 12.0);
+    st->sy  = approach(st->sy,  tgt_sy,  dt, 12.0);
+    st->rot = approach(st->rot, tgt_rot, dt, 14.0);
 }
 
 static const PetType CAT = {
@@ -361,4 +418,11 @@ const PetType *pettype_by_name(const char *name) {
     if (strcmp(name, "cat")    == 0) return pettype_cat();
     if (strcmp(name, "jarvis") == 0) return pettype_jarvis();
     return NULL;
+}
+
+void pet_state_reset(PetState *st) {
+    memset(st, 0, sizeof *st);
+    st->sx = 1.0;
+    st->sy = 1.0;
+    st->frame_mix = 1.0;   /* no cross-fade in progress */
 }
