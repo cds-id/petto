@@ -451,7 +451,7 @@ static const PetType ROCKET_LOTTIE = {
     .tick        = lrocket_tick,
     .draw        = NULL,
     .lottie_file = "rocket.json",
-    .lottie_px   = 128,
+    .lottie_px   = 256,
     .sprite      = { .gw = 1, .gh = 1, .nframes = 0, .frames = { 0 },
                      .npalette = 0, .palette = { { 0 } } },
 };
