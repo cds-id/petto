@@ -35,8 +35,8 @@ void config_defaults(Config *cfg) {
     cfg->short_min  = 5;
     cfg->long_min   = 15;
     cfg->long_every = 4;
-    cfg->spawn_x    = 200;
-    cfg->spawn_y    = 200;
+    cfg->spawn_x    = -1;   /* -1 = auto: place near a screen corner */
+    cfg->spawn_y    = -1;
     cfg->onboarded  = 0;
 }
 

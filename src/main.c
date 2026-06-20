@@ -52,7 +52,7 @@ static double now_sec(void) {
 /* (Re)build the sprite cache + pet window for the pet type in cfg. On a type
  * change we tear down the old window/sprite and create new ones sized to the
  * new sprite. Returns 0 on success. */
-static int build_pet(App *app, Sprite *spr, PetWindow *pw, const Config *cfg,
+static int build_pet(App *app, Sprite *spr, PetWindow *pw, Config *cfg,
                      int *W, int *H, int first) {
     const PetType *pt = pettype_by_name(cfg->pet_type);
     if (!pt) pt = pettype_rocket();
@@ -75,8 +75,32 @@ static int build_pet(App *app, Sprite *spr, PetWindow *pw, const Config *cfg,
     if (margin < 12) margin = 12;
     *W = sw + margin * 2;
     *H = sh + margin * 2;
-    if (petwin_create(pw, *W, *H, cfg->spawn_x, cfg->spawn_y) != 0)
+
+    /* Provisional position; corrected below once the screen size is known. */
+    int px = cfg->spawn_x, py = cfg->spawn_y;
+    if (px < 0 || py < 0) { px = 0; py = 0; }
+    if (petwin_create(pw, *W, *H, px, py) != 0)
         return -1;
+
+    /* Resolve auto/sentinel position to the bottom-right corner with a small
+     * inset. Also clamp any saved position back on-screen. */
+    int scr_w = DisplayWidth(pw->dpy, pw->screen);
+    int scr_h = DisplayHeight(pw->dpy, pw->screen);
+    const int inset = 24;
+    if (cfg->spawn_x < 0 || cfg->spawn_y < 0) {
+        px = scr_w - *W - inset;
+        py = scr_h - *H - inset;
+    } else {
+        px = cfg->spawn_x;
+        py = cfg->spawn_y;
+    }
+    if (px < 0) px = 0;
+    if (py < 0) py = 0;
+    if (px > scr_w - *W) px = scr_w - *W;
+    if (py > scr_h - *H) py = scr_h - *H;
+    cfg->spawn_x = px;
+    cfg->spawn_y = py;
+    petwin_move(pw, px, py);
     return 0;
 }
 
@@ -242,12 +266,10 @@ int main(int argc, char **argv) {
         last = t;
 
         if (t - last_raise > 1.0) { petwin_raise(&pw); last_raise = t; }
-        int prev_frame = app.st.frame;
-        double pe = app.st.energy;
         if (app.pt->tick) app.pt->tick(app.pt, &app.st, dt);
-        if (app.st.frame != prev_frame || app.st.energy > 0.001 || pe > 0.001)
-            need_draw = 1;
-        if (app.pt->draw) need_draw = 1;
+        /* Fluent transforms (breathing squash/sway, cross-fades) change every
+         * frame, so always redraw. Cheap: it's a single cached blit. */
+        need_draw = 1;
 
         /* ---- launch: fly upward, reset once off the top ---- */
         if (app.st.mode == PET_LAUNCH) {
@@ -303,6 +325,13 @@ int main(int argc, char **argv) {
             if (!pw.composited) petwin_update_shape(&pw);
             need_draw = 0;
         }
+    }
+
+    /* Persist final position (unless mid-launch, when it's off-screen). */
+    if (app.st.mode != PET_LAUNCH) {
+        cfg.spawn_x = pw.x;
+        cfg.spawn_y = pw.y;
+        config_save(&cfg);
     }
 
     if (kh) keyhook_destroy(kh);
