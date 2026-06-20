@@ -1,0 +1,8 @@
+# build artifacts
+/petto
+src/*.o
+*.o
+
+# editor
+*.swp
+.DS_Store
