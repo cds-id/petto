@@ -1,6 +1,7 @@
 #include "blockscreen.h"
 #include <X11/Xatom.h>
 #include <X11/Xutil.h>
+#include <X11/keysym.h>
 #include <X11/extensions/Xrender.h>
 #include <cairo/cairo-xlib.h>
 #include <stdio.h>
@@ -54,7 +55,7 @@ int blockscreen_init(BlockScreen *bs, Display *dpy) {
     attr.background_pixel = 0;
     attr.border_pixel = 0;
     attr.override_redirect = True;   /* bypass WM, cover everything */
-    attr.event_mask = ExposureMask | KeyPressMask;
+    attr.event_mask = ExposureMask | KeyPressMask | ButtonPressMask;
 
     bs->win = XCreateWindow(dpy, bs->root, 0, 0, bs->w, bs->h, 0, bs->depth,
                             InputOutput, bs->visual,
@@ -100,6 +101,19 @@ void blockscreen_hide(BlockScreen *bs) {
 }
 
 int blockscreen_visible(const BlockScreen *bs) { return bs->mapped; }
+
+Window blockscreen_window(const BlockScreen *bs) { return bs->win; }
+
+int blockscreen_wants_skip(BlockScreen *bs, XEvent *ev) {
+    if (!bs->mapped) return 0;
+    if (ev->type == KeyPress) {
+        KeySym ks = XLookupKeysym(&ev->xkey, 0);
+        if (ks == XK_Escape) return 1;   /* Esc dismisses the break early */
+    }
+    if (ev->type == ButtonPress)
+        return 1;   /* a deliberate click on the overlay also skips */
+    return 0;
+}
 
 void blockscreen_draw(BlockScreen *bs, const char *label, double remaining,
                       double total, double t) {
@@ -177,7 +191,7 @@ void blockscreen_draw(BlockScreen *bs, const char *label, double remaining,
     cairo_show_text(cr, buf);
 
     /* ---- hint (bottom, gentle pulse) ---- */
-    const char *hint = "Step away  -  petto unlocks when the break ends";
+    const char *hint = "Step away  -  press Esc or click to skip the break";
     cairo_select_font_face(cr, "sans-serif", CAIRO_FONT_SLANT_NORMAL,
                            CAIRO_FONT_WEIGHT_NORMAL);
     cairo_set_font_size(cr, 18);

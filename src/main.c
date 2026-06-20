@@ -165,6 +165,13 @@ int main(int argc, char **argv) {
         while (XPending(pw.dpy)) {
             XEvent ev;
             XNextEvent(pw.dpy, &ev);
+            /* break overlay shares this display: let it consume skip events */
+            if (cfg.pomodoro && blockscreen_visible(&bs) &&
+                blockscreen_wants_skip(&bs, &ev)) {
+                pomo_skip(&pomo, now_sec());   /* end the break early */
+                blockscreen_hide(&bs);
+                continue;
+            }
             if (petwin_handle_event(&pw, &ev)) need_draw = 1;
         }
 

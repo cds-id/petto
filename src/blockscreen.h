@@ -34,6 +34,13 @@ typedef struct {
 int  blockscreen_init(BlockScreen *bs, Display *dpy);
 void blockscreen_destroy(BlockScreen *bs);
 
+/* Return the overlay's Window id (for routing events from a shared display). */
+Window blockscreen_window(const BlockScreen *bs);
+
+/* Inspect an X event addressed to the overlay. Returns 1 if the user asked to
+ * skip/dismiss the break (Esc or click), else 0. */
+int  blockscreen_wants_skip(BlockScreen *bs, XEvent *ev);
+
 /* Show / hide the overlay. show grabs keyboard; hide releases it. */
 void blockscreen_show(BlockScreen *bs);
 void blockscreen_hide(BlockScreen *bs);
